@@ -34,6 +34,7 @@ bq_client = bigquery.Client()
 # Logging Mechanism
 log_entries = []  # Stores logs before writing to GCS
 ##---------------------------------------------------------------------------------------------------##
+
 def log_event(event_type, message, table=None):
     """Log an event and store it in the log list"""
     log_entry = {
@@ -44,3 +45,50 @@ def log_event(event_type, message, table=None):
     }
     log_entries.append(log_entry)
     print(f"[{log_entry['timestamp']}] {event_type} - {message}")  # Print for visibility
+    
+##---------------------------------------------------------------------------------------------------##
+    
+# Function to Read Config File from GCS
+def read_config_file():
+    df = spark.read.csv(CONFIG_FILE_PATH, header=True)
+    log_event("INFO", "✅ Successfully read the config file")
+    return df
+
+##---------------------------------------------------------------------------------------------------##
+
+# Function to Move Existing Files to Archive
+def move_existing_files_to_archive(table):
+    blobs = list(storage_client.bucket(GCS_BUCKET).list_blobs(prefix=f"landing/retailer-db/{table}/"))
+    existing_files = [blob.name for blob in blobs if blob.name.endswith(".json")]
+    
+    if not existing_files:
+        log_event("INFO", f"No existing files for table {table}")
+        return
+    
+    for file in existing_files:
+        source_blob = storage_client.bucket(GCS_BUCKET).blob(file)
+        
+        # Extract Date from File Name (products_27032025.json)
+        date_part = file.split("_")[-1].split(".")[0]
+        year, month, day = date_part[-4:], date_part[2:4], date_part[:2]
+        
+        # Move to Archive
+        archive_path = f"landing/retailer-db/archive/{table}/{year}/{month}/{day}/{file.split('/')[-1]}"
+        destination_blob = storage_client.bucket(GCS_BUCKET).blob(archive_path)
+        
+        # Copy file to archive and delete original
+        storage_client.bucket(GCS_BUCKET).copy_blob(source_blob, storage_client.bucket(GCS_BUCKET), destination_blob.name)
+        source_blob.delete()
+        
+        log_event("INFO", f"✅ Moved {file} to {archive_path}", table=table)
+
+    
+##---------------------------------------------------------------------------------------------------##
+
+# Main Execution
+config_df = read_config_file()
+
+for row in config_df.collect():
+    if row["is_active"] == '1':
+        db, src, table, load_type, watermark, _, targetpath = row
+        move_existing_files_to_archive(table)
