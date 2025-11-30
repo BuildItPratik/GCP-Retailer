@@ -12,20 +12,23 @@ from airflow.providers.google.cloud.operators.dataproc import (
 # define the variables
 PROJECT_ID = "numeric-replica-471213-i0"
 REGION = "us-east1"
-CLUSTER_NAME = "my-cluster"
+CLUSTER_NAME = "my-demo-cluster"
 COMPOSER_BUCKET = "us-central1-demo-instance-b038d2cd-bucket"
 
 GCS_JOB_FILE_1 = f"gs://{COMPOSER_BUCKET}/data/ingestion/retailerMysqlToLanding.py"
 PYSPARK_JOB_1 = {
     "reference": {"project_id": PROJECT_ID},
     "placement": {"cluster_name": CLUSTER_NAME},
-    "pyspark_job": {"main_python_file_uri": GCS_JOB_FILE_1},
+    "pyspark_job": {
+        "main_python_file_uri": GCS_JOB_FILE_1
+    },
     "properties": {
         "spark.driver.memory": "4g",
         "spark.executor.memory": "4g",
         "spark.executor.cores": "2"
     },
 }
+
 
 GCS_JOB_FILE_2 = f"gs://{COMPOSER_BUCKET}/data/ingestion/supplierMysqlToLanding.py"
 PYSPARK_JOB_2 = {
